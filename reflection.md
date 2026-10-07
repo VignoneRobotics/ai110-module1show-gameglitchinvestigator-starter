@@ -12,6 +12,8 @@ Answer each question in 3 to 5 sentences. Be specific and honest about what actu
   2. **New Game doesn't fully reset.** After a loss, New Game gave a new secret and reset attempts to 0, but Score (-25) and History carried over, and the game showed "Game over" and ignored guesses until I refreshed the browser.
   3. **Difficulty range mismatch.** The banner always says "between 1 and 100," while the sidebar says 1 to 20 (Easy) or 1 to 50 (Hard). Secrets of 49 on Easy and 84 on Hard suggest the secret ignores the range too (suspected, not confirmed).
 
+  Status after Phase 2: bugs 1 and 2 are fixed. Bug 3 is documented but not fixed.
+
 **Bug Reproduction Log**
 (Line numbers refer to the original starter code, before my edits.)
 
@@ -49,14 +51,14 @@ Win message: "You won! The secret was 85. Final score: -20" (panel said -30)
 - Give one example of an AI suggestion you did not accept as written (including what the AI suggested, why you rejected or changed it, and how you verified your version). It does not have to be a suggestion that was wrong: over-engineered, out of scope, harder to read, or a poor fit for this codebase all count.
   When Claude proposed removing the leftover `except TypeError` branch, its diff contained a placeholder comment ("# FIX: ... (the FIX comment from Diff A moves here)") instead of a real one, and it had also swapped the arrow emoji without being asked. I approved the change but told Claude to write the actual comment text, then read the applied diff in the editor to make sure no placeholder was left. I also asked it to show that branch as a separate diff so I could decide on it, and I only accepted it after checking Claude's "dead code" claim myself (parse_guess always returns an int and the secret comes from randint).
 
-  More generally, Claude's first overview of the project listed several possible bugs after only reading the code, and I treated them as unverified hypotheses: I wrote them in my notes unchecked and only counted each one as a bug after I reproduced it myself. For example, its comment that the Hard range might be intentionally easier I never logged, and its claim that "Too High" scoring awards +5 on even attempts I saw once (the +5 in one of my runs) but did not fix. Apart from those, I accepted its diffs after reading them.
+  More generally, Claude's first overview of the project listed several possible bugs after only reading the code, and I treated them as unverified hypotheses: I wrote them in my notes unchecked and only counted each one as a bug after I reproduced it myself. For example, its comment that the Hard range might be intentionally easier I never logged, and its claim that "Too High" scoring awards +5 on even attempts I confirmed in two games but did not fix. Apart from those, I accepted its diffs after reading them.
 
 ---
 
 ## 3. Debugging and testing your fixes
 
 - How did you decide whether a bug was really fixed?
-  I wanted two kinds of evidence: an automated test and a manual check in the game. For the hints, pytest passes (4 passed) and I replayed the exact inputs that used to fail. On a fresh game with secret 10, guesses of 1, 100, 1, 100 gave "Go HIGHER!", "Go LOWER!", "Go HIGHER!", "Go LOWER!", so odd and even attempts now behave the same.
+  I wanted two kinds of evidence: an automated test and a manual check in the game. For the hints, pytest passes (4 passed) and I replayed the exact inputs that used to fail. On a fresh game with secret 10, guesses of 1, 100, 1, 100 gave "Go HIGHER!", "Go LOWER!", "Go HIGHER!", "Go LOWER!", so odd and even attempts now behave the same. For New Game, I tested both a win and a loss: after each, clicking New Game reset Score to 0 and History to empty, the game accepted guesses again (status back to "playing"), and I didn't need to refresh the page, which was the exact problem I saw before the fix.
 
 - Describe at least one test you ran (manual or using pytest)  
   and what it showed you about your code.
@@ -68,7 +70,7 @@ collected 4 items
 
 tests\test_game_logic.py ....                                    [100%]
 
-============================== 4 passed in 0.75s ==============================
+============================== 4 passed in 0.09s ==============================
 ```
 
 - Did AI help you design or understand any tests? How?
