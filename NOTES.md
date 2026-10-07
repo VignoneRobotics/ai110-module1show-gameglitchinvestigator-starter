@@ -114,32 +114,44 @@ My checks:
 - Hand-traced all hints from Runs 1, 2, 4, 5 (swapped text + string comparison on alternating guesses, guess k judged at attempts = k+1). Runs 1 and 2 also match the real scores and win/loss messages. The opposite numbering fails (predicts HIGHER for 100 on guess #5, Run 1; I saw LOWER).
 - [x] Prediction test (Run 5): 100 as guess #2 -> "Go HIGHER!" (wrong), as predicted; same 100 as guess #3 -> "Go LOWER!".
 - Read update_score (app.py:57-60): "Too High" gives +5 on even attempts, -5 otherwise. Matches the scores I saw. Win bonus (app.py:52-54): points = 100 - 10*(attempt_number+1), minimum 10.
-- Read the New Game block (app.py:134-138) and lines 140-145: New Game resets only attempts (135) and secret (136, always randint(1, 100)); the leftover "lost" status then hits st.stop() (145). Explains the stuck "Game over" state. Read-only; not yet run.
+- Read the New Game block (app.py:134-138) and lines 140-145: New Game resets only attempts (135) and secret (136, always randint(1, 100)); the leftover "lost" status then hits st.stop() (145). Explains the stuck "Game over" state.
 
 Status: confirmed by reading AND by my own prediction test.
 
 ### Claude's hypotheses (from the file-overview prompt): status
-- [x] Wrong hints: swapped text (app.py:37-47) + string comparison on even attempts (app.py:158-161). Reproduced in Runs 1-5.
-- [x] On even attempts the secret becomes a string: confirmed (Run 5 test + code lines).
-- [x] Attempts counter starts at 1, "attempts left" off by one: fresh load shows Attempts 1, left = allowed - 1.
-- [x] New Game resets attempts to 0 but not status, score or history: seen in Run 3; code at app.py:134-138.
-- [ ] New Game ignores the difficulty range: code says randint(1, 100) at app.py:136 (read, not yet run).
-- [x] Info banner hardcodes "1 and 100": seen on Easy and Hard (banner code not yet located).
-- [x] "Too High" scoring awards +5 on even attempts: app.py:57-59, seen in Run 5.
-- [x] Starter tests fail: confirmed with `python -m pytest`, for the reason Claude predicted (NotImplementedError from the stubs).
-- [ ] Claude's claim that tests expect a bare string while app.py's check_guess returns a tuple: untested until the stubs are implemented.
+- [x] Wrong hints: swapped text + string comparison on even attempts. Reproduced in Runs 1-5; FIXED in Phase 2.
+- [x] On even attempts the secret becomes a string: confirmed (Run 5 test + code lines); FIXED in Phase 2.
+- [x] Attempts counter starts at 1, "attempts left" off by one: fresh load shows Attempts 1, left = allowed - 1. NOT fixed.
+- [x] New Game resets attempts to 0 but not status, score or history: seen in Run 3; code at app.py:134-138. Fix pending.
+- [ ] New Game ignores the difficulty range: code says randint(1, 100) in the New Game block (read, not yet run). NOT fixed.
+- [x] Info banner hardcodes "1 and 100": seen on Easy and Hard. NOT fixed.
+- [x] "Too High" scoring awards +5 on even attempts: app.py:57-59, seen in Run 5. NOT fixed (none of my post-fix test guesses hit that case).
+- [x] Starter tests fail: confirmed with `python -m pytest`, for the reason Claude predicted.
+- [x] Claude's claim that tests expect a bare string while check_guess returns a tuple: confirmed by reading tests/test_game_logic.py (assert result == "Win" vs a tuple return).
 
 ## Chosen bugs for reflection.md section 1
-1. Wrong hints: Bug A (swapped text) and Bug B (secret cast to string on even attempts)
-2. New Game doesn't reset score/history and leaves the game stuck until refresh
-3. Difficulty range mismatch: banner always says 1-100 on Easy and Hard; secrets 49 (Easy) and 84 (Hard) are outside the range (initial secret setup not located; New Game uses randint(1, 100))
-Backups: attempts off by one; out-of-range guesses accepted.
+1. Wrong hints: Bug A (swapped text) and Bug B (secret cast to string on even attempts). FIXED.
+2. New Game doesn't reset score/history and leaves the game stuck until refresh. Fix pending.
+3. Difficulty range mismatch: banner always says 1-100 on Easy and Hard; secrets 49 (Easy) and 84 (Hard) are outside the range. Not fixed (documented only).
+Backups: attempts off by one; out-of-range guesses accepted; +5 scoring on even attempts for "Too High".
 
-## To confirm
+## Phase 2 log (fixing with Claude Code)
+- Prompt 0 (Manual mode): asked Claude to add 3 FIXME comments in app.py and nothing else. It showed a diff, flagged that line numbers shift after adding lines, I approved; git diff --stat showed 3 insertions in 1 file.
+- Stage 1 (refactor, no behavior change): Claude proposed a plan (written to a plan file); I clicked "Yes, and use auto mode" (mistake: edits applied before I saw them, so I reviewed the diff afterwards; the diff was fine). It moved check_guess into logic_utils.py, imported it in app.py, and updated the 3 starter tests to unpack the (outcome, message) tuple. I chose to change the tests (option A) instead of changing the function, because the docstring and the one caller both use the tuple. pytest: 3 passed (Claude ran it; I re-ran it).
+- Starter tests only check the outcome, so they couldn't detect the swapped hint text; added a message-direction test.
+- Stages 2+3 (Manual mode, merged to save time). Claude showed Diffs A-D before applying: A swap hint text (and the arrow emoji), B new test_hint_message_direction, C remove the str() cast of the secret in app.py, D remove the dead except TypeError branch in check_guess. Claude said D was dead code "by reading only." I checked: parse_guess always returns an int and the secret comes from randint. I approved all four.
+- Suggestion I changed: Diff D contained a placeholder comment ("# FIX: ... (the FIX comment from Diff A moves here)"). I told Claude to use real text, then read the applied diff to make sure no "..." comment remained. Also, Claude swapped the arrow emoji on its own initiative; it flagged it and I accepted it.
+- Verification: `python -m pytest`: 4 passed (3 existing + test_hint_message_direction). In-app check, fresh load, no refresh, secret 10:
+  1 -> Go HIGHER!, 100 -> Go LOWER!, 1 -> Go HIGHER!, 100 -> Go LOWER! (all correct; scores 0, -5, -10, -15 via the lagging panel).
+- Commit 596fceb: "fix: move check_guess into logic_utils, correct hint direction, compare secret as int".
+- Still to do: New Game fix (separate Claude session), README, reflection.
+
+## Git log
+- Commit 1: CLAUDE.md + NOTES.md (setup and play-testing), a40a871
+- Commit 2: reflection.md + NOTES.md (bug log and Claude hint analysis), 994baab
+- Commit 3: refactor + hint fixes + CLAUDE.md update, 596fceb
+
+## To confirm / open
 - Run 4 rows 4-5 (see note): did I click New Game or refresh, or mis-transcribe?
 - Whether the Easy/Hard secrets were generated before I switched difficulty.
 - Where the first secret and the banner text are created in app.py.
-
-## Git log
-- Commit 1: CLAUDE.md + NOTES.md (setup and play-testing)
-- Commit 2 (pending): reflection.md + NOTES.md (bug log and Claude hint analysis)
